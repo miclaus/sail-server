@@ -109,15 +109,15 @@ Route::get('/{name}', function (Request $request, $name) {
 
     $services = implode(' ', $with);
 
-    $version = '^'.$version.'0';
+    $target = '^'.$version.'0';
 
     $with = implode(',', $with);
 
     $devcontainer = $request->has('devcontainer') ? '--devcontainer' : '';
 
     $script = str_replace(
-        ['{{ php }}', '{{ version }}', '{{ name }}', '{{ with }}', '{{ devcontainer }}', '{{ services }}'],
-        [$php, $version, $name, $with, $devcontainer, $services],
+        ['{{ php }}', '{{ target }}', '{{ name }}', '{{ with }}', '{{ devcontainer }}', '{{ services }}'],
+        [$php, $target, $name, $with, $devcontainer, $services],
         file_get_contents(resource_path('scripts/php.sh'))
     );
 

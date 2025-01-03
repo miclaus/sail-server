@@ -24,8 +24,40 @@ Route::get('/{name}', function (Request $request, $name) {
         'selenium',
         'soketi',
     ];
+    $validPhpVersions = ['74', '80', '81', '82', '83', '84'];
+    $validLaravelVersions = [
+        '74' => ['8'],
+        '80' => ['8', '9'],
+        '81' => ['8', '9', '10'],
+        '82' => ['9', '10', '11'],
+        '83' => ['10', '11'],
+        '84' => ['11'],
+    ];
+    $defaultPhpVersion = end($validPhpVersions);
 
-    $php = $request->query('php', '84');
+    $phpRequestQuery = $request->query('php');
+    $php = $phpRequestQuery ?? $defaultPhpVersion;
+
+    $version = $request->query('version');
+    if ($phpRequestQuery === null && $version !== null) {
+        $php = match ($version) {
+            '8' => '81',
+            '9' => '82',
+            '10' => '83',
+            '11' => '84',
+            default => $defaultPhpVersion,
+        };
+    }
+    
+    if ($version === null) {
+        if (in_array($php, $validPhpVersions)) {
+            $version = end($validLaravelVersions[$php]);
+        } else {
+            $version = end($validLaravelVersions[$defaultPhpVersion]);
+        }
+    }
+
+    $validLaravelVersionsForPhp = $validLaravelVersions[$php] ?? end($validLaravelVersions);
 
     $with = array_unique(explode(',', $request->query('with', 'mysql,redis,meilisearch,mailpit,selenium')));
 
@@ -34,11 +66,13 @@ Route::get('/{name}', function (Request $request, $name) {
             [
                 'name' => $name,
                 'php' => $php,
+                'version' => $version,
                 'with' => $with,
             ],
             [
                 'name' => 'string|alpha_dash',
-                'php' => ['string', Rule::in(['74', '80', '81', '82', '83', '84'])],
+                'php' => ['string', Rule::in($validPhpVersions)],
+                'version' => ['string', Rule::in($validLaravelVersionsForPhp)],
                 'with' => 'array',
                 'with.*' => [
                     'required',
@@ -58,6 +92,16 @@ Route::get('/{name}', function (Request $request, $name) {
             return response('Invalid PHP version. Please specify a supported version (74, 80, 81, 82, 83, or 84).', 400);
         }
 
+        if (array_key_exists('version', $errors)) {
+            // Format the PHP version to X.Y format
+            $phpFormatted = substr($php, 0, 1) . '.' . substr($php, 1);
+            // Format the valid versions to have "or" before the last version
+            $formattedVersions = count($validLaravelVersions[$php]) > 1
+                ? implode(', ', array_slice($validLaravelVersions[$php], 0, -1)).' or '.end($validLaravelVersions[$php])
+                : $validLaravelVersions[$php][0];
+            return response('Invalid Laravel version for PHP '.$phpFormatted.'. Please specify a supported version ('.$formattedVersions.').', 400);
+        }
+
         if (array_key_exists('with', $errors)) {
             return response('Invalid service name. Please provide one or more of the supported services ('.implode(', ', $availableServices).') or "none".', 400);
         }
@@ -65,13 +109,15 @@ Route::get('/{name}', function (Request $request, $name) {
 
     $services = implode(' ', $with);
 
+    $version = '^'.$version.'0';
+
     $with = implode(',', $with);
 
     $devcontainer = $request->has('devcontainer') ? '--devcontainer' : '';
 
     $script = str_replace(
-        ['{{ php }}', '{{ name }}', '{{ with }}', '{{ devcontainer }}', '{{ services }}'],
-        [$php, $name, $with, $devcontainer, $services],
+        ['{{ php }}', '{{ version }}', '{{ name }}', '{{ with }}', '{{ devcontainer }}', '{{ services }}'],
+        [$php, $version, $name, $with, $devcontainer, $services],
         file_get_contents(resource_path('scripts/php.sh'))
     );
 

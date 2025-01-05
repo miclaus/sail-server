@@ -109,7 +109,7 @@ Route::get('/{name}', function (Request $request, $name) {
 
     $services = implode(' ', $with);
 
-    $target = '^'.$version.'0';
+    $target = '^'.$version.'.0';
 
     $with = implode(',', $with);
 
